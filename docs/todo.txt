@@ -1,0 +1,4 @@
+ - Use ChaChaRng to randomly produce a sequence of transformations, polynomial vector, permutation vector and sbox.
+ - Computationally calculate the inverse of the polynomial vector
+ - Implement sequence as a list of closures, not a list of enums
+ - Use padding as described in RFC 5652
