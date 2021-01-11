@@ -1,0 +1,9 @@
+Version 0.1.1
+    - We now calculate the inverse of the polynomial (used in the linear (mix columns)) step
+    - ames is implemented in a CipherBlock trait
+    - We now use the ChaCha generator to make a reproducable encryption algorithm
+    - Randomly generated polynomials are checked to ensure their determinant is non-zero
+    - AmES moved to its own package
+
+Version 0.1.0
+    - Initial Commit

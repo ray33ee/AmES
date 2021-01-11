@@ -1,4 +1,35 @@
- - Use ChaChaRng to randomly produce a sequence of transformations, polynomial vector, permutation vector and sbox.
- - Computationally calculate the inverse of the polynomial vector
  - Implement sequence as a list of closures, not a list of enums
- - Use padding as described in RFC 5652
+ - Find a way to squash 256-bit key into 128 bit for use in xor step
+
+Since this crate is strictly an encryption algorithm (and not a file encryption program) the following previously
+identified goals have been redacted:
+
+ - Encrypt and decrypt files
+    - Use padding as described in RFC 5652
+    - Use clap to parse command line args
+    - Prepend encrypted file with the parameters and salt used by scrypt key deriver
+        - use crypto::scrypt::{scrypt_simple, ScryptParams};
+        - 1 block containing the scrypt parameters
+        - 1 block containing the salt used
+        - parameters stored on code as constants
+    - Prepend encrypted file with hmac
+        - crypto::mac::Mac
+        - SHA-3 digest using sha-256 hash
+        - 2 blocks containing 32-byte hash
+ - Generate secure 256-bit key from string password
+ - use parameters and salt to verify key, then use key with hmac to verify file integrity
+
+ - Algorithm ( outdated ):
+    01. Verify file exists
+    02. Use key to initialise ChaChaRng
+    03. Get a number of rounds
+    04. Get a sequence of rounds
+    05. Get a random permutation
+    06. Get a random polynomial
+    07. Get a random SBox
+    08. Initialise key extender
+    09. Open file
+    10. Take 16 bytes of data at a time
+    11. Process the 16 bytes
+    12. Write to new file/old file
+    13. If we're at the end, pad the last block if needed or add an entire block if no padding is needed
