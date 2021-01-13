@@ -2,11 +2,12 @@
 # It is not intended for manual editing.
 [[package]]
 name = "am_es"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "block-modes",
  "cipher",
  "galois_2p8",
+ "hex",
  "hex-literal",
  "num-derive",
  "num-traits",
@@ -77,6 +78,12 @@ dependencies = [
  "libc",
  "wasi",
 ]
+
+[[package]]
+name = "hex"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "805026a5d0141ffc30abb3be3173848ad46a1b1664fe632428479619a3644d77"
 
 [[package]]
 name = "hex-literal"

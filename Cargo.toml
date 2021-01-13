@@ -1,6 +1,6 @@
 [package]
 name = "am_es"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["ray33ee <30669752+ray33ee@users.noreply.github.com>"]
 edition = "2018"
 
@@ -16,3 +16,4 @@ num-derive = "0.2"
 
 block-modes="0.7.0"
 hex-literal="0.3.1"
+hex="0.3.1"

@@ -1,3 +1,16 @@
+Version 0.1.2
+    - Changing STATE_SIZE constant correctly changes the size of blocks
+    - Fixed points and Opposite points are detected within is_valid function in SBox
+    - SBox trait now requires new method that takes a generator to generate new SBox
+    - Special functions are added to validate polynomials and permutations
+    - When creating a new BlockCipher, we loop over SBox, permutation and polynomials until they are validated
+    - Arithmetic when rotating polynomial rows (in State::linear function) has been changed, this means that the
+      order of the value returned by invert_map now makes sense
+    - The range used by the gen_range to get the number of rounds now takes the ROUND_COUNT_RANGE const as argument
+    - We now use the RandomRijndaelSBox struct as our new sbox which is similar to the Rijndael S-box except that
+      it uses a randomly generated affine transformation
+    - We now show Encryption and Decryption times
+
 Version 0.1.1
     - We now calculate the inverse of the polynomial (used in the linear (mix columns)) step
     - ames is implemented in a CipherBlock trait

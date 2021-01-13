@@ -1,6 +1,6 @@
 
 pub mod ames {
-    use galois_2p8::{IrreducablePolynomial, PrimitivePolynomialField};
+    use galois_2p8::{GeneralField, IrreducablePolynomial, PrimitivePolynomialField};
     use galois_2p8::Field;
 
     use std::fmt;
@@ -18,8 +18,12 @@ pub mod ames {
     use num_derive::{ToPrimitive, FromPrimitive};
     use num_traits::FromPrimitive;
 
-    const STATE_SIZE: usize = 16;
+    pub const STATE_SIZE: usize = 16;
+    pub const ROUND_COUNT_RANGE: std::ops::RangeInclusive<u32> = 15..=20;
+
     const ROW_SIZE: usize = 4;
+
+
 
     //Number of possible actions. Currently 4 (XOR, Scramble, Linear and SBox)
     // If more actions are added, this number must be updated accordingly
@@ -37,26 +41,71 @@ pub mod ames {
         fn forward(&self, byte: u8) -> u8;
 
         fn reverse(&self, byte: u8) -> u8;
+
+        fn new<R: Rng + ?Sized>(rng: & mut R) -> Self;
+
+        fn is_valid(&self) -> bool {
+            for byte in 0..=255 {
+                //Sbox is not valid if it
+                // - contains fixed points (i.e. s(a) = a)
+                // - contains opposite points (i.e. s(a) = complement(a))
+                // - is not invertable (i.e. s^{-1}(s(a)) != a
+                if self.forward(byte) == byte ||
+                    self.forward(byte) == !byte ||
+                    self.reverse(self.forward(byte)) != byte {
+                    return false;
+                }
+            }
+            true
+        }
+    }
+
+    struct RandomRijndaelSBox {
+        _field: GeneralField,
+        _mult: u8,
+        _add: u8
+    }
+
+    impl SBox for RandomRijndaelSBox {
+
+        fn forward(&self, byte: u8) -> u8 {
+            let mul_inv = if byte == 0 {
+                0
+            }
+            else {
+                self._field.div(1, byte)
+            };
+
+            self._field.mult(self._mult, mul_inv) ^ self._add
+        }
+
+        fn reverse(&self, byte: u8) -> u8 {
+            let inv = self._field.div(byte ^ self._add, self._mult);
+
+            if inv == 0 {
+                0
+            }
+            else {
+                self._field.div(1, inv)
+            }
+        }
+
+        fn new<R: Rng + ?Sized>(rng: & mut R) -> Self {
+            let mult = rng.gen_range(1..=255);
+            let add = rng.gen_range(1..=255);
+
+            RandomRijndaelSBox {
+                _field: GeneralField::new(IrreducablePolynomial::Poly84310),
+                _mult: mult,
+                _add: add
+            }
+        }
+
     }
 
     struct ArraySbox {
         _forward: Vec<u8>,
         _reverse: Vec<u8>
-    }
-
-    impl ArraySbox {
-        fn new(list: Vec<u8>) -> Self {
-            let mut reverse = vec![0; 256];
-
-            for (i, map_element) in list.iter().enumerate() {
-                reverse[*map_element as usize] = i as u8;
-            }
-
-            ArraySbox {
-                _forward: list,
-                _reverse: reverse
-            }
-        }
     }
 
     impl SBox for ArraySbox {
@@ -67,6 +116,23 @@ pub mod ames {
 
         fn reverse(&self, byte: u8) -> u8 {
             self._reverse[byte as usize]
+        }
+
+        fn new<R: Rng + ?Sized>(rng: & mut R) -> Self {
+            let mut forward: Vec<_> = (0..=255).into_iter().collect();
+
+            forward.shuffle(rng);
+
+            let mut reverse = vec![0; 256];
+
+            for (i, map_element) in forward.iter().enumerate() {
+                reverse[*map_element as usize] = i as u8;
+            }
+
+            ArraySbox {
+                _forward: forward,
+                _reverse: reverse
+            }
         }
 
     }
@@ -110,7 +176,7 @@ pub mod ames {
         }
 
         fn linear(& mut self, polynomial: & [u8; ROW_SIZE]) {
-            for i in 0..ROW_SIZE {
+            for i in 0..(STATE_SIZE / ROW_SIZE) {
                 let row = & mut self._array[i*ROW_SIZE..i*ROW_SIZE+ROW_SIZE];
 
                 let mut new_row = [0u8; ROW_SIZE];
@@ -119,7 +185,7 @@ pub mod ames {
 
                     for (k, row_element) in row.iter().enumerate() {
                         //Perform some dirty modular arithmetic to shift each row
-                        let polynomial_element = polynomial[(k + 7 - j) % ROW_SIZE];
+                        let polynomial_element = polynomial[(k + ROW_SIZE - j) % ROW_SIZE];
                         //Perform matrix multiplication by multiplying each element and adding them up
                         *new_row_element = self._field.add(*new_row_element, self._field.mult(polynomial_element, *row_element))
                     }
@@ -163,7 +229,21 @@ pub mod ames {
                 }
             }
         }
+    }
 
+    fn is_valid_permutation(permutation: & [u8; STATE_SIZE]) -> bool {
+        //Make sure the permutation maps element n to element m such that n != m
+        for (i, element) in permutation.iter().enumerate() {
+            if *element == i as u8 {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn is_valid_polynomial(field: & PrimitivePolynomialField, polynomial: & [u8; ROW_SIZE]) -> bool {
+        //Make sure the determinant (of the circulant matrix generated by the polynomial) is non-zero
+        determinant(field, polynomial) != 0
     }
 
     fn invert_map(map: & [u8]) -> [u8; STATE_SIZE] {
@@ -213,16 +293,16 @@ pub mod ames {
 
         let determinant = determinant(field, polynomial);
 
-        result[2] = field.div(field.mult(field.mult(alpha, alpha), alpha) ^field.mult(field.mult(beta, beta), gamma) ^field.mult(field.mult(gamma, delta), delta) ^
+        result[0] = field.div(field.mult(field.mult(alpha, alpha), alpha) ^field.mult(field.mult(beta, beta), gamma) ^field.mult(field.mult(gamma, delta), delta) ^
                                   field.mult(field.mult(alpha, beta), delta) ^field.mult(field.mult(beta, delta), alpha) ^field.mult(field.mult(gamma, alpha), gamma), determinant);
 
-        result[3] = field.div(field.mult(field.mult(beta, beta), delta) ^field.mult(field.mult(gamma, delta), alpha) ^field.mult(field.mult(delta, alpha), gamma) ^
+        result[1] = field.div(field.mult(field.mult(beta, beta), delta) ^field.mult(field.mult(gamma, delta), alpha) ^field.mult(field.mult(delta, alpha), gamma) ^
                                   field.mult(field.mult(beta, alpha), alpha) ^field.mult(field.mult(gamma, beta), gamma) ^field.mult(field.mult(delta, delta), delta), determinant);
 
-        result[0] = field.div(field.mult(field.mult(beta, beta), alpha) ^field.mult(field.mult(gamma, gamma), gamma) ^field.mult(field.mult(delta, alpha), delta) ^
+        result[2] = field.div(field.mult(field.mult(beta, beta), alpha) ^field.mult(field.mult(gamma, gamma), gamma) ^field.mult(field.mult(delta, alpha), delta) ^
                                   field.mult(field.mult(beta, gamma), delta) ^field.mult(field.mult(gamma, alpha), alpha) ^field.mult(field.mult(delta, beta), gamma), determinant);
 
-        result[1] = field.div(field.mult(field.mult(beta, gamma), alpha) ^field.mult(field.mult(gamma, alpha), beta) ^field.mult(field.mult(delta, beta), delta) ^
+        result[3] = field.div(field.mult(field.mult(beta, gamma), alpha) ^field.mult(field.mult(gamma, alpha), beta) ^field.mult(field.mult(delta, beta), delta) ^
                                   field.mult(field.mult(beta, beta), beta) ^field.mult(field.mult(gamma, gamma), delta) ^field.mult(field.mult(delta, alpha), alpha), determinant);
 
         result
@@ -236,7 +316,7 @@ pub mod ames {
 
         _generator: ChaChaRng,
 
-        _sbox: ArraySbox,
+        _sbox: RandomRijndaelSBox,
 
         _field: PrimitivePolynomialField,
 
@@ -264,7 +344,7 @@ pub mod ames {
             let mut generator = ChaChaRng::from_seed(<<ChaChaRng as SeedableRng>::Seed>::from(master_key));
 
             /* Get the number of 'rounds' used in the algorithm */
-            let round_count = generator.gen_range(10..=15);
+            let round_count = generator.gen_range(ROUND_COUNT_RANGE);
 
             /* Get the sequence of actions */
             //Produce an AES like algorithm, with one Action after another. Action1, Action 2, Action3, Action 1, Action 2, ...
@@ -273,13 +353,11 @@ pub mod ames {
             sequence.shuffle(& mut generator);
 
             /* Get the sbox */
-            let sbox = ArraySbox::new(
-                {
-                    let mut map: Vec<u8> = (0..=255).into_iter().collect();
-                    map.shuffle(&mut generator);
-                    map
-                }
-            );
+            let mut sbox = RandomRijndaelSBox::new(& mut generator);
+
+            while !sbox.is_valid() {
+                sbox = RandomRijndaelSBox::new(& mut generator);
+            }
 
             /* Get the polynmial, ensuring the determinant of the circulant matrix generated from the polkynomial is non-zero */
             let mut polynomial = [0; ROW_SIZE];
@@ -287,13 +365,9 @@ pub mod ames {
             let uniform_byte = Uniform::from(0..=255);
 
             //Keep generating random ppolynomials until we find one with a non-zero determinant
-            loop {
+            while !is_valid_polynomial(&field, &polynomial) {
                 for coeff in polynomial.iter_mut() {
                     *coeff = uniform_byte.sample(& mut generator);
-                }
-
-                if determinant(&field, &polynomial) != 0 {
-                    break;
                 }
             }
 
@@ -304,7 +378,9 @@ pub mod ames {
                 *element = i as u8;
             }
 
-            permutation.shuffle(& mut generator);
+            while !is_valid_permutation(&permutation) {
+                permutation.shuffle(&mut generator);
+            }
 
             /* Calculate the inverse of all the actions */
             let inverse_poly = invert_polynomial(&field, &polynomial);

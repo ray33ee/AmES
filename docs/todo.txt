@@ -1,5 +1,9 @@
  - Implement sequence as a list of closures, not a list of enums
- - Find a way to squash 256-bit key into 128 bit for use in xor step
+ - Find a way to squash 256-bit key into 128 bit for use in xor step, squash it down using STATE_SIZE as the new size
+ - Convert this project into a crate, (not an executable) and let user configure BlockCipher::BlockSize
+    - When configuring block size, both BlockCipher::BlockSize and STATE_SIZE must be updated
+    - Let the user also configure ROUND_COUNT_RANGE.
+ - Modify the generation of SBox, permutation and polynomial so that they are created as valid first time
 
 Since this crate is strictly an encryption algorithm (and not a file encryption program) the following previously
 identified goals have been redacted:
