@@ -1,6 +1,6 @@
 mod ames_cipher;
 
-use crate::ames_cipher::ames::AmES;
+use crate::ames_cipher::ames::{AmESRijndaelSbox};
 
 use block_modes::{BlockMode, Cbc};
 use block_modes::block_padding::Pkcs7;
@@ -9,11 +9,10 @@ use hex_literal::hex;
 
 use std::time::{Instant};
 
-type AmESCbc = Cbc<AmES, Pkcs7>;
+type AmESCbc = Cbc<AmESRijndaelSbox, Pkcs7>;
 
 fn main() {
-
-    let key = hex!("91c3d48111ee4b2856eb31a6badb0a7f75a18dd26ba8ddaee03b6fe26343cb69");
+    let key = hex!("81c3d48111ee4b2856eb31a6badb0a7f75a18dd26ba8ddaee03b6fe26343cb69");
     let iv = hex!("6adea10c58f0741eddd0008726f99089");
     let plaintext = ['h' as u8; 100000];
 

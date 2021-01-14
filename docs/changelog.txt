@@ -1,3 +1,12 @@
+Version 0.1.3
+    - We now use a special algorithm to generate permutations without fixed points
+    - Permutation is now an array of usize, not u8
+    - We can now choose between SBoxes via generics (Users can even implement their own S-boxes using the SBox trait
+    - We now have a more efficient algorithm for generating polynomials (but it still requires guessing)
+        - determinant function removed since this is calculated during creation
+        - is_valid_polynomial function removed since generated polynomials are valid
+    - The AES Sbox has been added as static (i.e. not key dependent)
+
 Version 0.1.2
     - Changing STATE_SIZE constant correctly changes the size of blocks
     - Fixed points and Opposite points are detected within is_valid function in SBox
