@@ -26,3 +26,7 @@ AmES doesn't just shift rows, it permutes the entire matrix into a new arrangeme
 ## MixColumns
 
 AmES uses the MixColumns step of AES, but the polynomial by which each column is multiplied is key dependent
+
+## AddKey
+
+Since this step is already key dependent, there really isn't much to say here
