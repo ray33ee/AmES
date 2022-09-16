@@ -1,5 +1,6 @@
 
 pub mod ames {
+    use std::arch::x86_64::_mm256_permutevar8x32_epi32;
     use galois_2p8::{GeneralField, IrreducablePolynomial, PrimitivePolynomialField};
     use galois_2p8::Field;
 
@@ -167,6 +168,112 @@ pub mod ames {
             }
         }
 
+    }
+
+    //This SBOX applies manipulations to the Rijndael that preserve robustness but are key dependent.
+    //See S.Harris and C.Adams, 'Key-Dependent S-Box Manipulations' for more info
+    pub struct RijndaelManipulated {
+        _forward: Vec<u8>,
+        _reverse: Vec<u8>,
+    }
+
+    impl RijndaelManipulated {
+        fn permute8(byte: u8, permutation: & [u8; 8]) -> u8 {
+            //Create a scratch pad array of bits (set to 0)
+            let mut ret = 0;
+
+            for (i, index) in permutation.iter().enumerate() {
+                let bit = ((1 << *index) & byte) != 0;
+
+                ret = ret | ((bit as u8) << (i as u8));
+            }
+
+            ret
+        }
+
+        fn rotate_once(mut byte: u8) -> u8 {
+            let top = (byte & 0x80) != 0;
+
+            if top {
+                byte = byte ^ 0x80;
+            }
+
+            (byte << 1) | (top as u8)
+        }
+
+        fn rotate_n(byte: u8, num: u32) -> u8 {
+            let mut n = byte;
+
+            for _ in 0..num {
+                n = Self::rotate_once(n);
+            }
+
+            n
+        }
+    }
+
+    impl SBox for RijndaelManipulated {
+        fn forward(&self, byte: u8) -> u8 {
+            self._forward[byte as usize]
+        }
+
+        fn reverse(&self, byte: u8) -> u8 {
+            self._reverse[byte as usize]
+        }
+
+        fn new<R: Rng + ?Sized>(rng: &mut R) -> Self {
+
+            //First we take the Rijndael SBox which we know is robust.
+
+            let rij = AesSbox::new(rng);
+
+            let mut forward = rij._forward;
+
+            let xor = rng.gen_range(0..=255) as u8;
+            let rotate = rng.gen_range(0..=8) as u32;
+
+            //Then we xor a random number, which we know preserves robustness.
+
+            for element in forward.iter_mut() {
+                *element = Self::rotate_n(*element, rotate) ^ xor;
+            }
+
+            // Finally we apply a permutation to the bits in the indices, which also preserves robustness.
+
+            // Create a list of indices
+            let mut indices: Vec<_> = (0..256).into_iter().enumerate().map(|(x, _)| x).collect();
+
+            //Create a random permutation
+            let mut permutation = [0u8; 8];
+
+            for (i, p) in permutation.iter_mut().enumerate() {
+                *p = i as u8;
+            }
+
+            permutation.shuffle(rng);
+
+            //Apply permutation to each index
+            for index in indices.iter_mut() {
+                *index = Self::permute8(*index as u8, &permutation) as usize;
+            }
+
+            let old = forward.clone();
+
+            for (i, index) in indices.iter().enumerate() {
+                forward[*index] = old[i];
+            }
+
+            let mut reverse = vec![0; 256];
+
+            for (i, map_element) in forward.iter().enumerate() {
+                reverse[*map_element as usize] = i as u8;
+            }
+
+            Self {
+                _forward: forward,
+                _reverse: reverse,
+            }
+        }
     }
 
     struct State<'a, 'b> {
